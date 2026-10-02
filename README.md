@@ -14,6 +14,53 @@ Run attacks against an agent, approve or reject risky calls, edit the policy liv
 
 ---
 
+## Three ways to use it
+
+From quickest to most involved.
+
+### 1. Try the live demo (no install)
+
+Open [kushal5306.github.io/agentwarrant](https://kushal5306.github.io/agentwarrant/) and wait about 10 seconds for "Ready".
+
+1. **Pick a scenario** on the left. "Normal" ones are everyday tool calls. "Attack" ones are hostile calls, such as a poisoned web page or a hidden instruction.
+2. **Read the verdict** in the middle: allowed, needs a person's approval, or denied, with the reasons.
+3. **Change things.** Edit the tool call and run it again, or edit the policy at the bottom and apply it.
+4. **Test the audit log.** Click "Tamper with a record", then "Verify chain". The edited record is flagged.
+
+### 2. Use it in your own Python agent
+
+```bash
+pip install git+https://github.com/kushal5306/agentwarrant
+```
+
+```python
+from agentwarrant import Guard, Policy
+
+guard = Guard(Policy.from_file("policy.yaml"))   # or Policy.default() to start
+
+# Option A: check each call in your agent loop, before you run the tool
+d = guard.check("read_file", {"path": "data/../../etc/passwd"})
+d.verdict    # Verdict.DENY
+d.findings   # the reasons, e.g. "path 'data/../../etc/passwd' escapes the allowed folders"
+
+# Option B: wrap the tool, so a blocked call raises ToolCallBlocked
+@guard.protect
+def read_file(path: str) -> str: ...
+
+# Check that nobody edited the log, then export it
+guard.audit.verify()
+guard.audit.to_jsonl()
+```
+
+**Writing your own policy:** copy [`agentwarrant/policies/default.yaml`](agentwarrant/policies/default.yaml) and edit it. For each tool you set a risk level, argument rules and rate limits. You also list the domains the agent may contact or email. Tools marked high-risk wait for a person's approval. See [Quick start](#quick-start) and [Policy as code](#policy-as-code) for more.
+
+### 3. Use it from another language, or with a real agent
+
+- **From another language (HTTP service):** start it with `python -m agentwarrant.serve --policy policy.yaml`. Your code then sends each tool call to `POST /check` on `localhost:8077` before running it. Keep it on localhost or put a login in front of it, because anyone who can reach `/approve` can approve calls. See [Use it from any language](#use-it-from-any-language).
+- **With a real local agent:** install [Ollama](https://ollama.com), run `ollama pull qwen2.5:7b`, then `python examples/ollama_agent.py` from a copy of the repo. Ask it to *"Read ../../etc/passwd"* and watch the guard block it. See [Run a real agent locally](#run-a-real-agent-locally-free-no-api-key).
+
+---
+
 ## Why
 
 Agents don't just talk, they act: they send email, query databases, read files and call APIs. The instructions they follow can come from anywhere, including a web page or document the agent just read. Telling the model in its prompt to behave is not a control.
