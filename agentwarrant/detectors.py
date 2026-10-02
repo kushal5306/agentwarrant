@@ -87,13 +87,23 @@ INJECTION = [
 
 PATH = [
     (r"(?:^|[\\/\s'\"=])\.\.(?:[\\/]|$)", "parent-directory traversal (../)"),
-    (r"(?:^|[\s'\"=])(?:/etc/(?:passwd|shadow|sudoers)|/proc/self|/root/|~/?\.ssh|~/?\.aws|\.env\b)", "targets a sensitive system path"),
+]
+
+SENSITIVE_PATH = [
+    (r"(?:^|[\s'\"=])(?:/etc/(?:passwd|shadow|sudoers)|/proc/self|/root/|~/?\.ssh|~/?\.aws)", "targets a sensitive system path"),
+    (r"(?:^|[\\/\s'\"=])(?:\.env(?!\.(?:example|sample|template)\b)\b|\.netrc\b|\.ssh[\\/]|id_(?:rsa|ecdsa|ed25519)\b)",
+     "targets a credentials file"),
     (r"[a-z]:\\windows\\system32|\\\\[a-z0-9.-]+\\[a-z$]+", "targets a Windows system path or network share"),
 ]
 
 SHELL = [
     (r"(?:;|&&|\|\||\|)\s*(?:rm|curl|wget|bash|sh|zsh|nc|ncat|chmod|chown|python3?|perl|cat|scp|ssh|powershell|iex)\b", "chains a shell command"),
     (r"\$\([^)]*\)|`[^`]*\b(?:rm|curl|wget|bash|sh|cat|nc|id|whoami)\b[^`]*`", "command substitution"),
+]
+
+# Kept apart from SHELL so they still run on arguments that are meant to be shell
+# commands, where chaining and substitution are expected.
+DESTRUCTIVE = [
     (r"\brm\s+-[a-z]*[rf][a-z]*\s+/", "recursive delete"),
     (r">&?\s*/dev/tcp/|\bmkfifo\b|\bnc\s+-e\b", "reverse-shell pattern"),
 ]
@@ -119,14 +129,19 @@ SECRETS = [
 _COMPILED = {
     "prompt_injection": [(re.compile(p, _I), m) for p, m in INJECTION],
     "path_traversal": [(re.compile(p, _I), m) for p, m in PATH],
+    "sensitive_path": [(re.compile(p, _I), m) for p, m in SENSITIVE_PATH],
     "shell_injection": [(re.compile(p, _I), m) for p, m in SHELL],
+    "destructive_command": [(re.compile(p, _I), m) for p, m in DESTRUCTIVE],
     "sql_injection": [(re.compile(p, _I), m) for p, m in SQL],
     "secret_leak": [(re.compile(p), m) for p, m in SECRETS],
 }
 
+CONTENT_CHECKS = frozenset(_COMPILED) | {"hidden_text"}
+
 URL_RE = re.compile(r"(?:https?|ftp)://[^\s'\"<>)\]]+", re.IGNORECASE)
 MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*https?://", re.IGNORECASE)
 DATA_URL_RE = re.compile(r"\bdata:[a-z]+/[a-z0-9.+-]+;base64,", re.IGNORECASE)
+SHELL_EXPANSION_RE = re.compile(r"\$\(|\$\{|\$[A-Za-z_]|`")
 BASE64_BLOB_RE = re.compile(r"[A-Za-z0-9+/]{120,}={0,2}")
 
 
@@ -136,7 +151,7 @@ def scan_text(text: str, skip: set[str] | None = None) -> list[Hit]:
     hits: list[Hit] = []
 
     _, hidden = reveal_hidden(text)
-    if hidden:
+    if hidden and "hidden_text" not in skip:
         hits.append(Hit("hidden_text", "contains invisible characters (" + ", ".join(hidden) + ")"))
 
     norm = normalize(text)
@@ -186,7 +201,8 @@ def check_urls(text: str, allowed: list[str], strict: bool) -> list[Hit]:
             hits.append(Hit("egress", f"URL hides credentials or a fake host ({host})"))
         if domain_allowed(host, allowed):
             continue
-        carries_data = len(parts.query) > 24 or len(parts.path) > 80
+        # $(...), `...` and $VAR are filled in by a shell at run time, so a short URL can still carry a file
+        carries_data = len(parts.query) > 24 or len(parts.path) > 80 or bool(SHELL_EXPANSION_RE.search(u))
         if strict:
             hits.append(Hit("egress", f"destination {host or '?'} is not on the egress allow-list"))
         elif carries_data:
@@ -205,6 +221,8 @@ def path_within(value: str, prefixes: list[str]) -> Hit | None:
         return Hit("path_traversal", f"path {value!r} escapes the allowed folders")
     for p in prefixes:
         base = posixpath.normpath(p.replace("\\", "/"))
+        if base == ".":  # "." means anywhere inside the working folder
+            return None
         if norm == base or norm.startswith(base.rstrip("/") + "/"):
             return None
     return Hit("path_traversal", f"path {value!r} is outside {', '.join(prefixes)}")

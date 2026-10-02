@@ -253,12 +253,19 @@ class Guard:
                     continue
                 # A precise path constraint replaces the generic "../" heuristic for that argument.
                 skip = {"path_traversal"} if spec is not None and spec.path_within else set()
+                if spec is not None:
+                    skip |= set(spec.skip_checks)
                 for path, text in _strings(val, name):
                     for hit in d.scan_text(text, skip=skip):
                         out.append(_f(hit.check, hit.message, Severity.BLOCK if hit.block else Severity.WARN, arg=path))
                     if not (spec is not None and spec.egress):
                         for hit in d.check_urls(text, p.egress.allowed_domains, strict=False):
-                            out.append(_f(hit.check, hit.message, Severity.BLOCK if hit.block else Severity.WARN, arg=path))
+                            if hit.block or p.egress.unlisted == "deny":
+                                out.append(_f(hit.check, hit.message, arg=path))
+                            elif p.egress.unlisted == "review":
+                                out.append(_f("approval", f"{hit.message}: a person must approve this call", Severity.WARN, arg=path))
+                            else:
+                                out.append(_f(hit.check, hit.message, Severity.WARN, arg=path))
 
         # 6. human oversight
         blocked = any(f.severity is Severity.BLOCK for f in out)

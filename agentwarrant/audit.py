@@ -87,8 +87,9 @@ class AuditLog:
         return "".join(json.dumps(e, ensure_ascii=False, default=str) + "\n" for e in self.entries)
 
     @classmethod
-    def from_jsonl(cls, lines: str | Iterable[str], key: bytes | None = None) -> "AuditLog":
-        log = cls(key=key)
+    def from_jsonl(cls, lines: str | Iterable[str], key: bytes | None = None, sink: Any = None) -> "AuditLog":
+        """Load a log, e.g. to verify it or to keep appending to it (pass the same file as ``sink``)."""
+        log = cls(key=key, sink=sink)
         if isinstance(lines, str):
             lines = lines.splitlines()
         log.entries = [json.loads(line) for line in lines if line.strip()]

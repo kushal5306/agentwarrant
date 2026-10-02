@@ -3,8 +3,8 @@
 /* Files of the Python package that get installed into the in-browser Python.
    tests/test_guard.py checks that this list stays complete. */
 const PY_FILES = [
-  "__init__.py", "audit.py", "bench.py", "controls.py", "detectors.py", "guard.py",
-  "models.py", "policy.py", "serve.py", "web.py", "policies/default.yaml",
+  "__init__.py", "audit.py", "bench.py", "claude_code.py", "controls.py", "detectors.py", "guard.py",
+  "models.py", "policy.py", "serve.py", "web.py", "policies/default.yaml", "policies/claude_code.yaml",
 ];
 
 const hidden = (s) => [...s].map((c) => String.fromCodePoint(0xE0000 + c.codePointAt(0))).join("");
