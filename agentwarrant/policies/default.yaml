@@ -1,0 +1,67 @@
+# agentwarrant policy: an assistant for a city's environmental digital twin.
+# Every tool the agent may call is listed here. Anything not listed is denied.
+
+version: 1
+name: city-twin-assistant
+description: Answers questions about weather, sensors and city documents. Can email colleagues and query the asset database.
+
+defaults:
+  unknown_tools: deny          # deny | review
+  scan_arguments: true         # injection, secret, traversal checks on every string
+  approval_for_risk: [high]    # high-risk tools wait for a person
+  max_calls_per_session: 40
+  block_on_warnings: false
+
+egress:
+  allowed_domains:
+    - api.open-meteo.com
+    - offenedaten-koeln.de
+    - th-koeln.de
+
+tools:
+  get_weather:
+    description: Forecast for a city
+    risk: low
+    rate_limit: 10
+    args:
+      city:  { type: string, max_length: 60, pattern: "^[A-Za-zÀ-ÿ .'-]+$" }
+      days:  { type: integer, min: 1, max: 14 }
+
+  query_sensors:
+    description: Readings from a twin's air-quality station
+    risk: low
+    args:
+      station_id:   { type: string, pattern: "^ST-[0-9]{4}$" }
+      metric:       { type: string, enum: [pm10, pm25, no2, temperature, humidity] }
+      window_hours: { type: integer, min: 1, max: 168, required: false }
+
+  read_file:
+    description: Read a document from the project's data folder
+    risk: medium
+    args:
+      path: { type: string, max_length: 200, path_within: ["data/", "reports/"] }
+
+  http_get:
+    description: Fetch a web page or open-data API
+    risk: medium
+    rate_limit: 5
+    args:
+      url: { type: string, max_length: 500, egress: true }
+
+  send_email:
+    description: Email a colleague
+    risk: high
+    args:
+      to:      { type: string, pattern: email, email_domains: [th-koeln.de] }
+      subject: { type: string, max_length: 120 }
+      body:    { type: string, max_length: 4000 }
+
+  run_sql:
+    description: Read-only query on the asset database
+    risk: high
+    args:
+      query: { type: string, max_length: 1000, sql_readonly: true }
+
+  delete_records:
+    description: Kept in the policy so the decision is explicit
+    enabled: false

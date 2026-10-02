@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentwarrant"
+version = "0.1.0"
+description = "No tool call without a warrant: a policy gate, human approval and tamper-evident audit log for tool-calling AI agents."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Kushal Shah" }]
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.6", "pyyaml>=6"]
+keywords = ["ai-agents", "llm", "guardrails", "ai-governance", "eu-ai-act", "iso-23894", "prompt-injection", "audit"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Security",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://kushal5306.github.io/agentwarrant/"
+Source = "https://github.com/kushal5306/agentwarrant"
+
+[project.scripts]
+agentwarrant-serve = "agentwarrant.serve:main"
+
+[tool.setuptools]
+packages = ["agentwarrant"]
+
+[tool.setuptools.package-data]
+agentwarrant = ["policies/*.yaml"]

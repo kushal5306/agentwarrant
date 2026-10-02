@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>agentwarrant · playground</title>
+<meta name="description" content="Try a policy gate for AI agents in your browser: block prompt injection and data exfiltration, approve risky tool calls, and watch a tamper-evident audit log catch an edit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230E1215'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='%23F0A04B' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#"><span class="mark" aria-hidden="true">✓</span>agentwarrant</a>
+  <nav>
+    <a href="https://github.com/kushal5306/agentwarrant">GitHub</a>
+    <a href="https://kushal5306.github.io">Kushal Shah</a>
+  </nav>
+</header>
+
+<section class="intro">
+  <p class="eyebrow">Runtime governance for tool-calling AI agents</p>
+  <h1>No tool call<br>without a <em>warrant</em>.</h1>
+  <p class="lede">An AI agent proposes a tool call. Before anything runs, a policy decides whether to <b class="t-allow">allow</b> it, send it to a person for <b class="t-review">review</b>, or <b class="t-deny">deny</b> it. Every decision is written to a hash-chained log you can check for tampering.</p>
+  <div class="boot" id="boot" role="status" aria-live="polite">
+    <span class="dot"></span><span id="bootText">Starting Python in your browser…</span>
+  </div>
+  <p class="fine">This page runs the actual <code>agentwarrant</code> Python package through Pyodide (WebAssembly). Nothing you type leaves your browser.</p>
+</section>
+
+<main class="grid" id="app" aria-busy="true">
+
+  <!-- 1 · AGENT -->
+  <section class="panel" id="p-agent">
+    <header><span class="step">1</span><h2>The agent proposes</h2></header>
+    <p class="hint">Pick a scenario. Each one is a tool call an agent might make, harmless or hostile.</p>
+    <div class="scenarios" id="scenarios"></div>
+
+    <div class="editor">
+      <label for="callBox">Tool call <span class="muted">(edit it and run again)</span></label>
+      <textarea id="callBox" spellcheck="false" rows="9"></textarea>
+      <div class="row">
+        <button class="btn primary" id="runBtn" disabled>Check this call</button>
+        <span class="err" id="callErr" role="alert"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · WARRANT -->
+  <section class="panel" id="p-warrant">
+    <header><span class="step">2</span><h2>The warrant</h2></header>
+    <div id="decision" class="decision empty">
+      <p class="muted">The guard's decision appears here.</p>
+    </div>
+  </section>
+
+  <!-- 3 · RECORD -->
+  <section class="panel" id="p-record">
+    <header><span class="step">3</span><h2>The record</h2></header>
+    <p class="hint">Each record holds the hash of the one before it. Edit one record and every later link breaks.</p>
+    <div class="row wrap">
+      <button class="btn" id="verifyBtn" disabled>Verify chain</button>
+      <button class="btn ghost" id="tamperBtn" disabled title="Rewrite a denied decision as allowed, like an insider covering tracks">Tamper with a record</button>
+      <button class="btn ghost" id="exportBtn" disabled>Export JSONL</button>
+      <button class="btn ghost" id="resetBtn" disabled>Reset</button>
+    </div>
+    <div id="verifyMsg" class="verify" role="status" aria-live="polite"></div>
+    <ol id="log" class="log" reversed></ol>
+  </section>
+
+  <!-- POLICY -->
+  <section class="panel wide" id="p-policy">
+    <header><span class="step">P</span><h2>Policy as code</h2></header>
+    <div class="policy-grid">
+      <div>
+        <label for="policyBox" class="sr-only">Policy YAML</label>
+        <textarea id="policyBox" spellcheck="false" rows="22"></textarea>
+        <div class="row">
+          <button class="btn primary" id="applyBtn" disabled>Apply policy</button>
+          <button class="btn ghost" id="policyReset" disabled>Restore default</button>
+          <span id="policyMsg" class="msg" role="status" aria-live="polite"></span>
+        </div>
+      </div>
+      <aside class="tries">
+        <h3>Things to try</h3>
+        <ol>
+          <li>Run <b>Exfiltrate by email</b>. Then add <code>gmail.com</code> to <code>send_email → email_domains</code>, apply, and run it again. The domain check passes now, but the injected instruction still gets it denied.</li>
+          <li>Set <code>risk: low</code> on <code>send_email</code>. Emails stop waiting for a person, and the Art. 14 evidence stops growing.</li>
+          <li>Remove <code>rate_limit</code> from <code>get_weather</code> and run <b>Runaway loop</b>.</li>
+          <li>Misspell a key, such as <code>requires_aproval</code>. The policy is validated, so a typo is an error, not a silently ignored rule.</li>
+          <li>After every change, run the benchmark below to see what it costs.</li>
+        </ol>
+      </aside>
+    </div>
+  </section>
+
+  <!-- EVIDENCE -->
+  <section class="panel wide" id="p-evidence">
+    <header><span class="step">E</span><h2>Evidence map</h2></header>
+    <p class="hint">Which governance controls this session has produced evidence for. Counts go up as decisions are made.</p>
+    <div id="evidence" class="evidence"></div>
+    <p class="fine">Indicative mapping to the EU AI Act, ISO/IEC 23894 and the OWASP Top 10 for LLM Applications (2025). A technical control supports an obligation. It does not make a system compliant on its own, and this is not legal advice.</p>
+  </section>
+
+  <!-- BENCHMARK -->
+  <section class="panel wide" id="p-bench">
+    <header><span class="step">B</span><h2>Attack suite</h2></header>
+    <div class="row wrap">
+      <button class="btn primary" id="benchBtn" disabled>Run 83 cases against the current policy</button>
+      <span class="muted" id="benchMeta"></span>
+    </div>
+    <div id="bench"></div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>agentwarrant · MIT · built by <a href="https://kushal5306.github.io">Kushal Shah</a></span>
+  <span>Pattern checks catch known attack shapes, not every paraphrase. The allow-list and argument limits do most of the work.</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
