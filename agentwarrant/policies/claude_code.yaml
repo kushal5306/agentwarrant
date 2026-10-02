@@ -1,0 +1,78 @@
+# agentwarrant policy for a coding agent (Claude Code), used by `python -m agentwarrant.claude_code`.
+#
+# The hook turns each Claude Code tool call into one of the tools below:
+#   Bash                          -> run_shell (or run_shell_unsandboxed)
+#   Read, Glob, Grep              -> read_project | read_temp | read_outside
+#   Write, Edit, MultiEdit, ...   -> write_project | write_temp | write_outside
+#   WebFetch                      -> http_get
+# "project" is the folder Claude Code was started in, "temp" is the system temp folder.
+
+version: 1
+name: claude-code-dev
+description: Guards a coding agent's shell, file and web tools inside one project.
+
+defaults:
+  unknown_tools: review
+  scan_arguments: true
+  approval_for_risk: [high]
+  max_calls_per_session: null   # each hook call is a new process, so budgets would not add up
+
+egress:
+  allowed_domains:
+    - github.com
+    - githubusercontent.com
+    - pypi.org
+    - pythonhosted.org
+    - docs.python.org
+    - localhost
+    - 127.0.0.1
+  unlisted: review   # a shell command that names any other domain waits for a person
+
+tools:
+  run_shell:
+    description: A shell command. Chaining and $(...) are normal here, so that check is off.
+    risk: medium
+    args:
+      command: { type: string, max_length: 100000, skip_checks: [shell_injection] }
+
+  run_shell_unsandboxed:
+    description: A shell command outside the sandbox
+    risk: high
+    args:
+      command: { type: string, max_length: 100000, skip_checks: [shell_injection] }
+
+  read_project:
+    risk: low
+    args:
+      path: { type: string, path_within: ["."] }
+
+  read_temp:
+    risk: low
+    args:
+      path: { type: string }
+
+  read_outside:
+    description: Reading elsewhere on the machine is allowed, except credentials and system secrets
+    risk: medium
+    args:
+      path: { type: string }
+
+  write_project:
+    risk: medium
+    args:
+      path: { type: string, path_within: ["."] }
+
+  write_temp:
+    risk: low
+    args:
+      path: { type: string }
+
+  write_outside:
+    risk: high
+    args:
+      path: { type: string }
+
+  http_get:
+    risk: medium
+    args:
+      url: { type: string, max_length: 2000, egress: true }

@@ -23,6 +23,8 @@ from pydantic import (
     field_validator,
 )
 
+from .detectors import CONTENT_CHECKS
+
 EMAIL_PATTERN = r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$"
 
 Risk = Literal["low", "medium", "high"]
@@ -49,6 +51,16 @@ class ArgSpec(_Strict):
     egress: bool = Field(False, description="value is a URL the tool will fetch; must be on the egress allow-list")
     sql_readonly: bool = False
     scan: bool = Field(True, description="run content checks (injection, secrets...) on this argument")
+    skip_checks: list[str] = Field(default_factory=list,
+                                   description="content checks to leave out for this argument, e.g. shell_injection for a shell command")
+
+    @field_validator("skip_checks")
+    @classmethod
+    def _known_checks(cls, v: list[str]) -> list[str]:
+        unknown = sorted(set(v) - CONTENT_CHECKS)
+        if unknown:
+            raise ValueError(f"unknown content check(s) {unknown}; known: {sorted(CONTENT_CHECKS)}")
+        return v
 
 
 class ToolRule(_Strict):
@@ -71,6 +83,8 @@ class Defaults(_Strict):
 
 class Egress(_Strict):
     allowed_domains: list[str] = Field(default_factory=list)
+    unlisted: Literal["warn", "review", "deny"] = Field(
+        "warn", description="links to other domains found in any argument: note them, ask a person, or block")
 
 
 class Policy(_Strict):

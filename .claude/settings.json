@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Glob|Grep|Write|Edit|MultiEdit|NotebookEdit|WebFetch",
+        "hooks": [{ "type": "command", "command": "python3 -m agentwarrant.claude_code" }]
+      }
+    ]
+  }
+}
